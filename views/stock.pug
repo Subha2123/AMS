@@ -1,0 +1,16 @@
+extends layout
+
+block content
+    h1 Asset Stock Overview
+
+    .row
+    each asset in stockSummary
+        .col-md-3.mb-4
+            .card.shadow-sm
+                .card-body
+                    h5.card-title= asset.displayName
+                    p.card-text
+                        strong Count: 
+                        span.badge.bg-success= asset.count
+
+   

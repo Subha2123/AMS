@@ -1,0 +1,193 @@
+extends layout
+
+block content
+  include ./partials/confirmModal
+  include ./partials/employeeModal
+
+  .d-flex.justify-content-between.align-items-center.mb-3
+    h3.mb-0.pageTitle Employee List
+    .d-flex.align-items-center.gap-2
+      input#customSearch.form-control(
+        type="text",
+        placeholder="Search employees...",
+        style="width: 200px;"
+      )
+      select#statusFilter.form-select(style="width: 150px;")
+        option(value="") All
+        option(value="ACTIVE") Active
+        option(value="INACTIVE") Inactive
+      .btn.btn-primary(data-bs-toggle="modal", data-bs-target="#employeeModal",onclick="openCreateEmployeeModal()") + Add Employee
+
+  
+  .mb-6
+    table.table.table-bordered#dynamicTable
+      thead
+        tr
+          each col in columns
+            th= col.label
+          if actions
+            th Actions
+      tbody
+
+  
+  script.
+    const columns = !{JSON.stringify(columns)};
+    const actions = !{JSON.stringify(actions)};
+    const ajaxUrl = "#{ajaxUrl}";        
+    const baseUrlPage = "/api/employees";     
+    const baseUrlApi = "/api/employees"; 
+
+    $(document).ready(function () {
+
+      const dtColumns = columns.map(col => ({
+        data: col.field,
+        title: col.label
+      }));
+
+
+      if (actions && actions.length) {
+        dtColumns.push({
+          data: null,
+          title: "Actions",
+          orderable: false,
+          render: function (data) {
+
+            let btns = "";
+            const disabledButton = data.is_active === false ? 'disabled' : '';
+
+            if (actions.includes("view")) {
+                btns += `
+                  <a href="${baseUrlPage}/view/${data.id}" 
+                    class="action-icon view me-2" title="View">
+                    <i class="bi bi-eye"></i>
+                  </a>`;
+            }
+
+            if (actions.includes("edit")) {
+              btns += `
+                <button 
+                  data-ref="${data.employee_ref_id}"
+                  data-name="${data.employee_name}"
+                  data-dept="${data.department}"
+                  data-id="${data.id}"
+                  class="action-icon editEmployeeBtn edit me-2 ${disabledButton ? 'disabled' : ''}" 
+                  title="Edit">
+                  <i class="bi bi-pencil"></i>
+                </button>`;
+            }
+
+            if (actions.includes("delete")) {
+              btns += `<button class="action-icon delete ${disabledButton ? 'disabled' : ''}" 
+                  ${disabledButton}
+                  onclick="openConfirmModal('Are you sure you want to delete this employee?', () => softDelete('${data.id}'))"
+                  title="Delete">
+                  <i class="bi bi-trash"></i>
+                </button>`;
+           }
+
+
+            return btns;
+          }
+        });
+      }
+
+  
+      const table = $('#dynamicTable').DataTable({
+        processing: true,
+        serverSide: true,
+        ajax: {
+          url: ajaxUrl,
+          type: "GET",
+          data: function (d) {
+            d.status = $('#statusFilter').val();
+            d.search = { value: $('#customSearch').val() };
+          }
+        },
+        ordering: false,
+        lengthChange: false,
+        dom: 'rtip',
+        columns: dtColumns,
+      });
+
+
+      $('#customSearch').on('keyup', function () {
+        table.ajax.reload();
+      });
+
+  
+      $('#statusFilter').change(function () {
+        table.ajax.reload();
+      });
+    });
+
+    
+    
+    function softDelete(id) {
+
+      $.ajax({
+        url: `/api/employee/update/${id}`,
+        type: "POST",
+        data: { action: "delete" },
+        success: function (res) {
+          if (res.success) {
+            alert(res.message || "Employee deleted successfully");
+            $('#dynamicTable').DataTable().ajax.reload();
+          } else {
+            alert(res.message || "Failed to delete employee");
+          }
+        },
+        error: function () {
+          alert("Something went wrong while deleting employee");
+        }
+      });
+    }
+
+    let confirmCallback = null;
+
+    function openConfirmModal(message, callback){
+      $('#confirmMessage').text(message);  
+      confirmCallback = callback;         
+      const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
+      modal.show();
+    }
+
+    $('#confirmBtn').on('click', async function(){
+      if(typeof confirmCallback === 'function'){
+        await confirmCallback();
+      }
+      bootstrap.Modal.getInstance(document.getElementById('confirmModal')).hide();
+    });
+
+    function openCreateEmployeeModal() {
+      $('#employeeModalTitle').text('Create Employee');
+      $('#employeeForm').attr('action', '/api/employee/create');
+
+      $('#employeeForm')[0].reset();
+
+      // show login fields
+      $('.login-fields').show();
+    }
+
+    $(document).on('click', '.editEmployeeBtn', function () {
+      const data = {
+        id: $(this).data('id'),
+        employee_ref_id: $(this).data('ref'),
+        employee_name: $(this).data('name'),
+        department: $(this).data('dept')
+      };
+      openEditEmployeeModal(data);
+    })
+
+    function openEditEmployeeModal(data) {
+      $('#employeeModalTitle').text('Edit Employee');
+      $('#employeeForm').attr('action', `/api/employee/update/${data.id}`);
+      $('#employee_ref_id').val(data.employee_ref_id);
+      $('#employee_name').val(data.employee_name);
+      $('#department').val(data.department);
+
+      $('.login-fields').hide();
+
+      const modal = new bootstrap.Modal(document.getElementById('employeeModal'));
+      modal.show();
+      }
+

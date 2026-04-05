@@ -1,0 +1,24 @@
+nav.navbar.navbar-expand-lg.headerBg
+  .container
+
+    button.navbar-toggler(type="button", data-bs-toggle="collapse", data-bs-target="#navbarNav")
+      span.navbar-toggler-icon
+
+    #navbarNav.collapse.navbar-collapse.d-flex.justify-content-between
+      ul.navbar-nav
+        if user
+          li.nav-item
+            span.nav-link Hello, #{user.username || user.email}
+
+      ul.navbar-nav
+        if !user 
+          div
+        else
+          li.nav-item
+          .btn.logoutBtn#logOutBtn(type="button") Logout
+script.
+    $(document).on('click', '#logOutBtn', function () {
+        $.post('/api/auth/logout', function () {
+            window.location.href = '/api/auth/login';
+        });
+    });

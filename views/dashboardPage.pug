@@ -1,0 +1,133 @@
+extends layout
+
+block content
+  .col-md-12
+  .welcome-card.d-flex.align-items-center.justify-content-between
+    .welcome-text
+      h2 Welcome to 
+        span#orgName.organization-name
+      h3
+        span.employee-badge#totalEmployees 0
+        |  Employees
+    .btn-group
+      a.btn.btn-primary(href="/api/assets") Go to Assets
+      a.btn.btn-secondary(href="/api/employees") Go to Employees
+
+
+  .row.mb-4.mt-4
+    .col-md-3
+      .card.stock-card.total-assets
+        .card-body
+          h5.card-title Total Assets
+          h3#totalAssets 0
+          p.card-text Number of all assets in inventory
+
+    .col-md-3
+      .card.stock-card.available-assets
+        .card-body
+          h5.card-title Available
+          h3#availableAssets 0
+          p.card-text Assets ready for use
+
+    .col-md-3
+      .card.stock-card.issued-assets
+        .card-body
+          h5.card-title Issued
+          h3#issuedAssets 0
+          p.card-text Assets currently issued
+
+    .col-md-3
+      .card.stock-card.scrapped-assets
+        .card-body
+          h5.card-title Scrapped
+          h3#scrappedAssets 0
+          p.card-text Assets removed from inventory
+
+  .row.mb-4
+    .col-md-4.d-flex
+      .card.purple-card.flex-fill
+        .card-body.d-flex.flex-column
+          h5.card-title Asset Status Distribution
+          canvas#statusChart(width="400", height="250")
+    .col-md-4.d-flex
+      .card.purple-card.flex-fill
+        .card-body.d-flex.flex-column
+          h5.card-title Assets by Category
+          ul#categoryList.list-group
+    .col-md-4.d-flex
+      .card.purple-card.flex-fill
+        .card-body.d-flex.flex-column
+          h5.card-title Recent Activity
+          .recent-activity#recentActivity
+
+
+
+  script(src="https://code.jquery.com/jquery-3.6.0.min.js")
+  script(src="https://cdn.jsdelivr.net/npm/chart.js")
+  script.
+    $(document).ready(function(){
+
+      $.get('/api/dashboard-data', function(res){
+        if(!res.success) return;
+
+        const data = res.data;
+        const org = data.orgSummary;
+        const stock = data.stockSummary;
+
+        // Stock counts
+        const available = stock.available?.count || 0;
+        const issued = stock.issued?.count || 0;
+        const scrapped = stock.scrapped?.count || 0;
+        const total = available + issued + scrapped;
+
+        // Update cards
+        $('#totalEmployees').text(org?.total_employees || 0);
+        $('#orgName').text(org?.organization_name || 0);
+        $('#totalAssets').text(total);
+        $('#availableAssets').text(available);
+        $('#issuedAssets').text(issued);
+        $('#scrappedAssets').text(scrapped);
+
+        // Status Chart
+        const ctxStatus = document.getElementById('statusChart').getContext('2d');
+        new Chart(ctxStatus, {
+          type: 'doughnut',
+          data: {
+            labels: ['Available', 'Issued', 'Scrapped'],
+            datasets: [{ data: [available, issued, scrapped], backgroundColor: ['#4c1d95','#a1d1f4',' #a99af7'] }]
+          }
+        });
+
+      const categoryList = $('#categoryList');
+        categoryList.empty();
+        data.assetByCate.forEach(c => {
+         categoryList.append(`
+          <li class="list-group-item category-item">
+            <div class="category-name">${c.category || 'Unknown'}</div>
+            <div class="category-count d-flex justify-content-between align-items-center">
+              <span class="">Count</span>
+              <span class="badge btn-custom-primary cateCount rounded-pill">${c.count}</span>
+            </div>
+          </li>
+        `);
+
+
+      });
+        
+
+      const container = $('#recentActivity');
+      container.empty();
+      data.recentActivity.forEach(item => {
+        container.append(`
+          <div class="activity-item p-2 mb-2 border rounded">
+            <div class="d-flex justify-content-between align-items-center">
+              <div class="fw-bold">${item.asset_name}</div>
+              <small class="text-muted">${item.activity_date}</small>
+            </div>
+            <div class="text-muted">${item.activity}</div>
+          </div>
+        `);
+      });
+        
+      });
+    });

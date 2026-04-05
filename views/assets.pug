@@ -1,0 +1,431 @@
+extends layout
+
+block content
+  include ./partials/confirmModal
+ 
+
+  .d-flex.justify-content-between.align-items-center.mb-3
+    h3.mb-0.pageTitle Assets
+    .d-flex.align-items-center.gap-2
+      a.btn.btn-primary(href="/api/assets/categories") Go To Category
+      input#customSearch.form-control(type="text", placeholder="Search assets...", style="width: 200px;")
+      .btn.btn-primary(href="#", data-bs-toggle="modal", data-bs-target="#addAssetModal") + Add Asset
+
+
+  table.table.table-bordered#dynamicTable
+    thead
+      tr
+        each col in assetColumns
+          th= col.label
+        if issueActions && issueActions.length
+          th &nbsp; 
+        if assetActions && assetActions.length
+          th Actions
+
+  
+  .modal.fade#addAssetModal(tabindex="-1", aria-hidden="true")
+    .modal-dialog
+      .modal-content
+        .modal-header
+          h5.modal-title Add Asset
+          button.btn-close(type="button", data-bs-dismiss="modal")
+        .modal-body
+          #assetMessageContainer
+          form#addAssetForm
+            each col in assetColumns
+              if col.showInForm && col.field != "id"
+                .mb-3
+                  label.form-label(for=col.field)= col.label
+                  if col.isSelect
+                    select.form-select(name=col.field, id=col.field, required)
+                      option(value="") Select Category
+                  else
+                    input.form-control(type="text", name=col.field, id=col.field)
+            .dflex.justify-content-end.gap-2
+            button.btn.btn-secondary.ml-2(type="button", data-bs-dismiss="modal") Close
+            button.btn.btn-primary(type="submit") Save
+
+  
+  .modal.fade#editAssetModal(tabindex="-1", aria-hidden="true")
+    .modal-dialog
+      .modal-content
+        .modal-header
+          h5.modal-title Edit Asset
+          button.btn-close(type="button", data-bs-dismiss="modal")
+        .modal-body
+          #editAssetMessageContainer
+          form#editAssetForm
+            each col in assetColumns
+              if col.showInForm && col.field != "id"
+                .mb-3
+                  label.form-label(for=col.field)= col.label
+                  if col.isSelect
+                    select.form-select(name=col.field, id="edit_" + col.field, required)
+                      option(value="") Select Category
+                  else
+                    input.form-control(type="text", name=col.field, id="edit_" + col.field)
+            button.btn.btn-secondary(type="button", data-bs-dismiss="modal") Close
+            button.btn.btn-primary(type="submit") Save
+
+  .modal.fade#issueModal(tabindex="-1", aria-hidden="true")
+    div.modal-dialog
+      div.modal-content
+        div.modal-header
+          h5.modal-title Issue Asset
+          button.close(type='button', data-bs-dismiss='modal') ×
+        div.modal-body
+          form#issueForm
+            input(type="hidden" id="issueAssetId")
+            div.mb-3
+              label Asset
+              input.form-control(type='text', id='issueAssetName', readonly)
+            div.mb-3
+              label Model
+              input.form-control(type='text', id='issueAssetModel', readonly)
+            div.mb-3
+              label Serial No
+              input.form-control(type='text', id='issueAssetVersion', readonly)
+            div.mb-3
+              label Employee
+              select.form-select(id='issueEmployeeSelect')
+        
+            button.btn.btn-secondary(type='button', data-bs-dismiss='modal') Close
+            button.btn.btn-primary(type='submit') Issue
+
+
+  div#scrapModal.modal.fade(tabindex="-1", aria-hidden="true")
+    div.modal-dialog
+      div.modal-content
+        div.modal-header
+          h5.modal-title Scrap Asset
+          button.btn-close(type='button', data-bs-dismiss='modal')
+        div.modal-body
+          form#scrapForm
+            div.mb-3
+              label Asset
+              input.form-control(type='text', id='assetName', readonly)
+            div.mb-3
+              label.required Reason
+              input.form-control(type='text', id='scrapReason', placeholder='Enter reason', required)
+       
+            button.btn.btn-secondary(type='button', data-bs-dismiss='modal') Cancel
+            button.btn.btn-danger(type='submit') Confirm
+
+  script.
+    const assetColumns = !{JSON.stringify(assetColumns)};
+    const assetActions = !{JSON.stringify(assetActions)};
+    const issueActions = !{JSON.stringify(issueActions)};
+    const assetAjaxUrl = "#{assetAjaxUrl}";
+    const baseAssetUrl = "/api/assets";
+
+    let employees = [];
+
+
+    function loadEmployees() {
+      return $.ajax({
+        url: "/api/employee/active",
+        type: "GET"
+      }).done(function(res){
+        if(res && res.data && Array.isArray(res.data)) {
+          employees = res.data.map(function(emp){
+            return { id: emp.id, name: emp.employee_name };
+          });
+        } else {
+          employees = [];
+          console.warn("No employees found");
+        }
+      }).fail(function(err){
+        employees = [];
+        console.error("Failed to load employees", err);
+      });
+    }
+
+    $(document).ready(function(){
+      loadEmployees();
+    });
+
+    $(document).ready(function () {  
+    
+      const messageContainer = $('#assetMessageContainer');
+
+      function showMessage(type, text) {
+        const html = `<div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                        ${text}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                      </div>`;
+        messageContainer.html(html);
+      }
+
+      function populateCategoryDropdown(dropdownId, selectedId = null) {
+        $.get('/api/assets/categories/data', function(res) {
+          const dropdown = $(`#${dropdownId}`);
+          dropdown.empty().append('<option value="">Select Category</option>');
+          if(res.data && res.data.length) {
+            res.data.forEach(cat => dropdown.append(`<option value="${cat.id}">${cat.category}</option>`));
+            if(selectedId) dropdown.val(selectedId);
+          } else {
+            showMessage('danger', 'No categories available. Please add a category first.');
+          }
+        });
+      }
+
+      const dtColumns = assetColumns.map(col => ({
+        data: col.field,
+        title: col.label
+      }));
+
+      if(assetActions && assetActions.length){
+        dtColumns.push({
+          data: null,
+          title: "Actions",
+          orderable: false,
+          render: function(data) {
+            let btns = "";
+            if (assetActions.includes("view")) {
+               btns += `
+                <a href="${baseAssetUrl}/view/${data.id}" 
+                  class="action-icon view me-2" title="View">
+                  <i class="bi bi-eye"></i>
+                </a>`;
+            }
+            if (assetActions.includes("edit")) {
+              btns += `
+                <button class="action-icon edit me-2 editAssetBtn" 
+                        data-id="${data.id}" title="Edit">
+                  <i class="bi bi-pencil"></i>
+                </button>`;
+            }
+            if (assetActions.includes("delete")) { 
+              btns += `
+                <button class="action-icon delete" 
+                  onclick="openConfirmModal('Are you sure you want to delete this asset?', () => softDeleteAsset('${data.id}'))"
+                  title="Delete">
+                  <i class="bi bi-trash"></i>
+                </button>`;
+            }
+            return btns;
+          }
+        });
+      }
+
+      if(issueActions && issueActions.length){
+        dtColumns.push({
+          data: null,
+          title: "",
+          orderable: false,
+          render: function(data){
+             const issueDisabled = data.status !== 'available' ? 'disabled' : '';
+             const scrapDisabled = data.status === 'scrapped' ? 'disabled' : '';
+            return `
+              <button class="btn btn-sm btn-success me-1 issueAssetBtn" ${issueDisabled}>Issue</button>
+              <button class="btn btn-sm btn-danger scrapBtn" data-id={data.id} ${issueDisabled}>Scrap</button>
+            `;
+          }
+        });
+      }
+
+      const table = $('#dynamicTable').DataTable({
+        processing: true,
+        serverSide: true,
+        ajax: {
+          url: assetAjaxUrl,
+          type: "GET",
+          data: function(d) {
+            d.model = $('#modelFilter').val();
+            d.search = { value: $('#customSearch').val() };
+          }
+        },
+        ordering: false,
+        lengthChange: false,
+        dom: 'rtip',
+        columns: dtColumns,
+      });
+
+      $('#customSearch').on('keyup', function() { table.ajax.reload(); });
+      $('#modelFilter').change(function() { table.ajax.reload(); });
+
+      $('#addAssetForm').submit(function(e){
+        e.preventDefault();
+        const formData = $(this).serialize();
+        $.post(`${baseAssetUrl}/create`, formData, function(res){
+          if(res.success){
+            $('#addAssetModal').modal('hide');
+            table.ajax.reload();
+            showMessage('success', res.message || "Asset added successfully");
+            $('#addAssetForm')[0].reset();
+          } else showMessage('danger', res.message || "Failed to add asset");
+        }).fail(()=> showMessage('danger', "Server error while adding asset"));
+      });
+
+      $('#dynamicTable').on('click', '.editAssetBtn', function(){
+        const id = $(this).data('id');
+        $.get(`${baseAssetUrl}/view/${id}`, function(res){
+          if(res.success){
+            const asset = res.data;
+            assetColumns.forEach(col => {
+              if(col.showInForm && col.field != "id"){
+                const field = $(`#edit_${col.field}`);
+                field.val(asset[col.field]);
+              }
+            });
+            populateCategoryDropdown('edit_asset_category_id', asset.asset_category_id);
+            $('#editAssetModal').modal('show');
+            $('#editAssetForm').off('submit').on('submit', function(e){
+              e.preventDefault();
+              const formData = $(this).serialize();
+              $.post(`${baseAssetUrl}/update/${id}`, formData, function(res){
+                if(res.success){
+                  $('#editAssetModal').modal('hide');
+                  table.ajax.reload();
+                  showMessage('success', res.message || "Asset updated successfully");
+                } else showEditMessage('danger', res.message || "Failed to update asset");
+              }).fail(()=> showEditMessage('danger', "Server error while updating asset"));
+            });
+          } else showEditMessage('danger', "Failed to load asset data");
+        });
+      });
+
+      $('#addAssetModal').on('show.bs.modal', function () {
+      populateCategoryDropdown('asset_category_id'); // 👈 your add form dropdown id
+    });
+
+      
+    });
+
+   
+    function softDeleteAsset(id){
+      $.ajax({
+        url: `${baseAssetUrl}/update/${id}`,
+        type: "POST",
+        data: { action: "delete" },
+        success: function(res){
+          if(res.success){
+            showMessage('success', res.message || "Asset deleted successfully");
+            $('#dynamicTable').DataTable().ajax.reload();
+          } else showMessage('danger', res.message || "Failed to delete asset");
+        },
+        error: ()=> showMessage('danger', "Something went wrong while deleting asset")
+      });
+    }
+
+
+    $('#dynamicTable').on('click', '.issueAssetBtn', function(){
+      const table = $('#dynamicTable').DataTable();
+      const asset = table.row($(this).closest('tr')).data();
+
+      if(asset){
+        document.getElementById('issueAssetName').value = asset.asset_name || '';
+        document.getElementById('issueAssetModel').value = asset.model || '';
+        document.getElementById('issueAssetVersion').value = asset.serial_no || '';
+
+        const select = document.getElementById('issueEmployeeSelect');
+        select.innerHTML = '';
+
+        loadEmployees().done(function(){
+          const select = document.getElementById('issueEmployeeSelect');
+          select.innerHTML = "";
+
+          employees.forEach(function(emp){
+            var option = document.createElement('option');
+            option.value = emp.id;
+            option.text = emp.name;
+            select.appendChild(option);
+          });
+
+          var modal = new bootstrap.Modal(document.getElementById('issueModal'));
+          modal.show();
+        });
+
+        $('#issueForm').off('submit').on('submit', async function(e){
+          e.preventDefault();
+          const employeeId = document.getElementById('issueEmployeeSelect').value;
+
+          try {
+            const res = await fetch(`/api/assets/issue`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ asset_id: asset.id, employee_id:employeeId })
+            });
+            
+            const data = await res.json();
+            if(data.success){
+              bootstrap.Modal.getInstance(document.getElementById('issueModal')).hide();
+              table.ajax.reload();
+              alert(data.message || "Asset issued successfully");
+            } else {
+              alert(data.message || "Failed to issue asset");
+            }
+          } catch(err){
+            console.error(err);
+            alert("Server error while issuing asset");
+          }
+        });
+      } else {
+        alert("Failed to get asset data from table");
+      }
+    });
+
+    $('#dynamicTable').on('click', '.scrapBtn', function(){
+      const table = $('#dynamicTable').DataTable();
+      const asset = table.row($(this).closest('tr')).data();
+      if(asset){
+        document.getElementById('assetName').value = asset.asset_name || '';
+          var modal = new bootstrap.Modal(document.getElementById('scrapModal'));
+          modal.show();
+
+        $('#scrapForm').off('submit').on('submit', async function(e){
+          e.preventDefault();
+          const reason = document.getElementById('scrapReason').value.trim();
+          try {
+            const res = await fetch(`/api/assets/scrap`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ asset_id: asset.id, scrap_reason:reason })
+            });
+            
+            const data = await res.json();
+            if(data.success){
+              bootstrap.Modal.getInstance(document.getElementById('scrapModal')).hide();
+              table.ajax.reload();
+              alert(data.message || "Asset issued successfully");
+            } else {
+              alert(data.message || "Failed to issue asset");
+            }
+          } catch(err){
+            console.error(err);
+            alert("Server error while issuing asset");
+          }
+        });
+      } else {
+        alert("Failed to get asset data from table");
+      }
+    });
+
+    function confirmScrap(assetId){
+      if(!confirm("Are you sure you want to scrap this asset?")) return;
+      fetch(`/api/assets/scrap/${assetId}`, { method: 'POST' })
+        .then(res=> res.json())
+        .then(data=>{
+          if(data.success){
+            $('#assetTable').DataTable().ajax.reload();
+            alert(data.message || "Asset scrapped successfully");
+          } else alert(data.message || "Failed to scrap asset");
+        })
+        .catch(err=> console.error(err));
+    }
+
+    let confirmCallback = null;
+
+    function openConfirmModal(message, callback){
+      $('#confirmMessage').text(message);  
+      confirmCallback = callback;         
+      const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
+      modal.show();
+    }
+
+    $('#confirmBtn').on('click', async function(){
+      if(typeof confirmCallback === 'function'){
+        await confirmCallback();
+      }
+      bootstrap.Modal.getInstance(document.getElementById('confirmModal')).hide();
+    });

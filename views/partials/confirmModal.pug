@@ -1,0 +1,12 @@
+
+div#confirmModal.modal.fade(tabindex="-1", aria-hidden="true")
+  div.modal-dialog
+    div.modal-content
+      div.modal-header
+        h5.modal-title Confirm Action
+        button.btn-close(type="button", data-bs-dismiss="modal")
+      div.modal-body
+        p#confirmMessage Are you sure you want to proceed?
+      div.modal-footer
+        button.btn.btn-secondary(type="button", data-bs-dismiss="modal") Cancel
+        button.btn.btn-danger(type="button", id="confirmBtn") Confirm

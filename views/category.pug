@@ -1,0 +1,171 @@
+extends layout
+
+block content
+  
+
+
+  #messageContainer
+    if error
+      .alert.alert-danger= error
+    if success
+      .alert.alert-success= success
+  
+  .d-flex.justify-content-between.align-items-center.mb-3
+    h3.mb-0.pageTitle Asset Categories
+    .d-flex.align-items-center.gap-2
+      input#customSearch.form-control(type="text", placeholder="Search categories...", style="width: 200px;")
+      .btn.btn-primary(href="#", data-bs-toggle="modal", data-bs-target="#addCategoryModal") + Add Category
+
+
+  //- .d-flex.justify-content-evenly.align-items-center.mb-3
+  //- .d-flex.align-items-center.gap-2
+  //-   h2 Asset Categories
+  //-   a.btn.btn-primary(
+  //-     href="#", 
+  //-     data-bs-toggle="modal", 
+  //-     data-bs-target="#addCategoryModal"
+  //-   ) + Add Category
+
+  table.table.table-bordered#categoryTable
+    thead
+      tr
+        th Category Name
+        th Description
+        th Actions
+
+  .modal.fade#addCategoryModal(tabindex="-1", aria-hidden="true")
+    .modal-dialog
+      .modal-content
+        .modal-header
+          h5.modal-title Add Category
+          button.btn-close(type="button", data-bs-dismiss="modal")
+        .modal-body
+          form#addCategoryForm
+            .mb-3
+              label.form-label(for="categoryName").required Category Name
+              input.form-control(type="text", name="category", id="categoryName", required)
+            .mb-3
+              label.form-label(for="description") Description
+              input.form-control(type="text", name="description", id="description")
+            .d-flex.justify-content-end.mt-3.gap-2
+              button.btn.btn-secondary(type="button", data-bs-dismiss="modal") Close
+              button.btn.btn-primary(type="submit") Save
+
+
+  script.
+    $(document).ready(function() {
+
+      const messageContainer = $('#messageContainer');
+
+      function showMessage(type, text) {
+        const html = `<div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                        ${text}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                      </div>`;
+        messageContainer.html(html);
+      }
+
+      const categoryTable = $('#categoryTable').DataTable({
+        processing: true,
+        serverSide: false,
+        ajax: {
+          url: "#{categoryAjaxUrl}",
+          type: "GET",
+          dataSrc: 'data',
+          data: function(d) {
+            d.search = { value: $('#customSearch').val() };
+          }
+        },
+        columns: [
+          { data: 'category', title: 'Category Name' },
+          { data: 'description', title: 'Description' },
+          { 
+            data: null, 
+            title: 'Actions', 
+            orderable: false, 
+            render: row => `
+              <button class="btn btn-sm btn-info edit-btn">Edit</button>
+              <button class="btn btn-sm btn-danger delete-btn">Delete</button>
+            `
+          }
+        ],
+        ordering: false,
+        lengthChange: false,
+        dom: 'rtip',
+      });
+
+      $('#customSearch').on('keyup', function() { categoryTable.ajax.reload(); });
+
+      $('#categoryTable tbody').on('click', '.edit-btn', function() {
+        const tr = $(this).closest('tr');
+        const row = categoryTable.row(tr);
+        const data = row.data();
+
+        tr.find('td:eq(0)').html(`<input type="text" class="form-control form-control-sm" value="${data.category}">`);
+        tr.find('td:eq(1)').html(`<input type="text" class="form-control form-control-sm" value="${data.description || ''}">`);
+        tr.find('td:eq(2)').html(`
+          <button class="btn btn-sm btn-success save-btn">Save</button>
+          <button class="btn btn-sm btn-secondary cancel-btn">Cancel</button>
+        `);
+      });
+
+      $('#categoryTable tbody').on('click', '.cancel-btn', function() {
+        categoryTable.ajax.reload();
+      });
+
+      $('#categoryTable tbody').on('click', '.save-btn', function() {
+        const tr = $(this).closest('tr');
+        const row = categoryTable.row(tr);
+        const data = row.data();
+        const updatedCategory = tr.find('td:eq(0) input').val();
+        const updatedDescription = tr.find('td:eq(1) input').val();
+
+        $.post(`/api/assets/categories/update/${data.id}`, {
+          category: updatedCategory,
+          description: updatedDescription
+        }, function(res) {
+          if(res.success) {
+            categoryTable.ajax.reload();
+            showMessage('success', res.message || "Category updated successfully");
+          } else {
+            showMessage('danger', res.message || "Failed to update category");
+          }
+        });
+      });
+
+      $('#categoryTable tbody').on('click', '.delete-btn', function() {
+        const tr = $(this).closest('tr');
+        const row = categoryTable.row(tr);
+        const data = row.data();
+
+        if(!confirm("Delete this category?")) return;
+
+        $.post(`/api/assets/categories/update/${data.id}`, { action: "delete" }, function(res) {
+          if(res.success) {
+            categoryTable.ajax.reload();
+            showMessage('success', res.message || "Category deleted successfully");
+          } else {
+            showMessage('danger', res.message || "Failed to delete category");
+          }
+        });
+      });
+
+      $('#addCategoryForm').submit(function(e) {
+        e.preventDefault();
+        $.post('/api/assets/categories/create', $(this).serialize(), function(res) {
+          if(res.success) {
+            $('#addCategoryModal').modal('hide');
+            categoryTable.ajax.reload();
+            if(res.data.statusCode === 201){
+              showMessage('success', res.message || "Category added successfully");
+              $('#addCategoryForm')[0].reset();
+            } else if(res.data.statusCode === 409){
+              showMessage('danger', res.data.message ||  "Failed to add category");
+            }
+          } else {
+            showMessage('danger', res.message ||  "Failed to add category");
+          }
+        });
+      });
+
+    });

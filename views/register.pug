@@ -1,0 +1,27 @@
+extends layout
+
+block content
+  .row.justify-content-center.loginform
+    .col-md-6
+      h2.mb-4.text-center Register
+      form(method="POST", action="/api/auth/register")
+        if error 
+           .alert.alert-danger=error
+        if success 
+           .alert.alert-success=success
+        .mb-3
+          label.form-label(for="username").required Username
+          input#username.form-control(type="text", name="username", placeholder="Enter username", required)
+        .mb-3
+          label.form-label(for="email").required Email
+          input#email.form-control(type="email", name="email", placeholder="Enter email", required)
+        .mb-3
+          label.form-label(for="password").required Password
+          input#password.form-control(type="password", name="password", placeholder="Enter password", required)
+        .mb-3
+          label.form-label(for="organization_name").required Organization Name
+          input#organization_name.form-control(type="text", name="organization_name", placeholder="Enter organization", required)
+        button.btn.btn-primary.w-100(type="submit") Register
+      p.text-center.mt-3
+        | Already have an account? 
+        a(href="/api/auth/login") Login here

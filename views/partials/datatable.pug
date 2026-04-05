@@ -1,0 +1,9 @@
+table.table.table-bordered#dynamicTable
+  thead
+    tr
+      each col in columns
+        th= col.label  
+      if actions
+        th Actions
+
+  tbody

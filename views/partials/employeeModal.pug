@@ -1,0 +1,59 @@
+div#employeeModal.modal.fade(tabindex="-1", aria-hidden="true")
+  div.modal-dialog
+    div.modal-content
+
+      div.modal-header
+        h5.modal-title#employeeModalTitle Create Employee
+        button.btn-close(type="button", data-bs-dismiss="modal")
+
+      div.modal-body
+        form#employeeForm(method="POST")
+          .mb-3
+            label.form-label.required Employee ID
+            input#employee_ref_id.form-control(
+              type="text",
+              name="employee_ref_id",
+              placeholder="Enter Employee ID",
+              required
+            )
+
+          .mb-3
+            label.form-label.required Name
+            input#employee_name.form-control(
+              type="text",
+              name="employee_name",
+              placeholder="Enter Employee Name",
+              required
+            )
+
+          .mb-3
+            label.form-label.required Department
+            input#department.form-control(
+              type="text",
+              name="department",
+              placeholder="Enter Department",
+              required
+            )
+
+          div.login-fields
+            p.mt-2.mb-2 Login Details
+
+            .mb-3
+              label.form-label.required Email
+              input#email.form-control(
+                type="email",
+                name="email",
+                placeholder="Enter Email"
+              )
+
+            .mb-3
+              label.form-label.required Password
+              input#password.form-control(
+                type="password",
+                name="password",
+                placeholder="Enter Password"
+              )
+
+      div.modal-footer
+        button.btn.btn-secondary(type="button", data-bs-dismiss="modal") Cancel
+        button.btn.btn-purple(type="submit", form="employeeForm") Save
